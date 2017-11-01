@@ -1,3 +1,9 @@
+yeti-cli (2.0.0) stable; urgency=low
+
+  * autocompletion: automatically add dot for non-final methods 
+
+ -- Michael Furmur <m.furmur@gmail.com>  Wed, 01 Nov 2017 19:05:05 +0200
+
 yeti-cli (0.0.1) stable; urgency=low
 
   * initial

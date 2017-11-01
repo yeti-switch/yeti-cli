@@ -330,7 +330,7 @@ class Shell(Cmd):
     def rpc_complete_dotted(self, method):
         try:
             a = method.split('.')
-            match_prefix = a[-1]
+            match_suffix = a[-1]
 
             if not method:
                 list_method = '_list'
@@ -345,36 +345,48 @@ class Shell(Cmd):
                 list_method = '_list'
                 prefix = ''
 
+            final_path = False
+
             #local completion
             if self.completion_tree:
-                a = method.split('.')
-                layer = self.completion_tree
+                layer = l = self.completion_tree
                 ret = None
                 while a:
+                    if layer is None:
+                        return []
                     key = a.pop(0)
                     if key not in layer.keys():
+                        final_path = True
                         ret = layer.keys()
                         break
                     if not a and not key.endswith('.'):
                         ret = layer.keys()
+                        if key in ret and layer[key] is None:
+                            final_path = True
+                            ret = [ key ]
                         break
                     l = layer[key]
                     if l:
                         layer = l
-                    elif not a:
-                        return []
+                    else:
+                        if not a:
+                            return []
+                        else:
+                            layer = None
                 if ret is None:
                     ret = layer.keys()
+                out = [ c for c in ret if c.startswith(match_suffix) ]
+                if len(out)==1 and not final_path:
+                    out = [ out[0] + '.' ]
             else:
                 #remote completion
                 rpc_ret = self.rpc_do_dotted(list_method,[])
                 ret = [ (c[0] if isinstance(c,list) else c) for c in rpc_ret]
+                out = [ c for c in ret if c.startswith(match_suffix) ]
 
-            out = [ c for c in ret if c.startswith(match_prefix) ]
-            if len(out)==1 and prefix:
-                return [ prefix + out[0] ]
-            else:
-                return out
+            if len(out)==1:
+                out = [ prefix + out[0] ]
+            return out
 
         except BaseException as err:
             #print("exception: {}".format(err))
