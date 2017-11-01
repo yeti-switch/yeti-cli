@@ -1,0 +1,5 @@
+debian/.debhelper
+debian/files
+debian/yeti-cli.debhelper.log
+debian/yeti-cli.substvars
+debian/yeti-cli

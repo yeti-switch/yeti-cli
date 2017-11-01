@@ -1,0 +1,29 @@
+nodes:
+   - id: local
+     rpc_endpoint: 127.0.0.1:7080
+#   - id: local_forced_dotted_rpc
+#     rpc_endpoint: 127.0.0.1:7080
+#     dotted: True
+#   - id: local_xml
+#     rpc_uri: 127.0.0.1:8090
+
+# load nodes list from API
+#nodes_url: 'http://127.0.0.1:3000/api/rest/system/nodes.json'
+
+# node to use on startup
+default_node: local
+
+# RPC request timeout
+timeout: 5
+
+# prompt prefix (default: 'yeti-cli')
+#prompt_system_name: 'yeti-cli'
+
+# load local completion tree from the default node on startup (default: False)
+#tree_autoload: True
+
+# clean local completion tree on switching between nodes (default: False)
+#tree_clear_on_use: True
+
+# default dotted mode if not specified for node (default: True)
+#dotted_by_default: False

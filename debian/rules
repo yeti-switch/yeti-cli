@@ -1,0 +1,14 @@
+#!/usr/bin/make -f
+
+version = $(shell dpkg-parsechangelog --help | grep -q '\--show-field' \
+	&& dpkg-parsechangelog --show-field version \
+	|| dpkg-parsechangelog | grep Version | awk '{ print $$2; }')
+
+
+%:
+	dh $@ --with python2
+
+
+override_dh_builddeb:
+	sed -i -e "s/\(__version__ =\).*/\1 \"$(version)\"/" debian/yeti-cli/usr/bin/yeti-cli
+	dh_builddeb

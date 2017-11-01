@@ -1,0 +1,12 @@
+Source: yeti-cli
+Section: utils
+Priority: optional
+Maintainer: Michael Furmur <m.furmur@gmail.cpm>
+Build-Depends: debhelper (>= 9), devscripts
+Standards-Version: 3.9.2
+
+Package: yeti-cli
+Architecture: all
+Depends:  ${misc:Depends}, ${python:Depends}, python-yaml, python-requests, python-enum
+Description: simple client for jsonrpc/xmlrpc
+	command line client for jsonrpc/xmlrpc with autocompletion	
