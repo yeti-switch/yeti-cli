@@ -476,7 +476,7 @@ class Shell(Cmd):
             return []
 
         if self.is_dotted_rpc():
-            c = self.rpc_complete_dotted(q[0])
+            return []
         else:
             c = self.rpc_complete(q)
 
