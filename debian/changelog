@@ -1,3 +1,9 @@
+yeti-cli (2.0.1p1) stable; urgency=low
+
+  * fix depends
+
+ -- Michael Furmur <m.furmur@gmail.com>  Thu, 18 Jan 2018 17:39:06 +0200
+
 yeti-cli (2.0.1) stable; urgency=low
 
   * skip completion in dotted mode if more than one arguments
