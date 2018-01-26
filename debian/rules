@@ -11,4 +11,4 @@ version = $(shell dpkg-parsechangelog --help | grep -q '\--show-field' \
 
 override_dh_builddeb:
 	sed -i -e "s/\(__version__ =\).*/\1 \"$(version)\"/" debian/yeti-cli/usr/bin/yeti-cli
-	dh_builddeb
+	dh_builddeb -- -Zgzip
