@@ -9,5 +9,5 @@ Package: yeti-cli
 Architecture: all
 Depends:  ${misc:Depends}, python, python-yaml, python-requests
 Suggests: python-enum
-Description: simple client for jsonrpc/xmlrpc
-	command line client for jsonrpc/xmlrpc with autocompletion	
+Description: simple client for jsonrpc
+	command line client for jsonrpc with autocompletion	
