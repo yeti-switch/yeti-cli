@@ -1,3 +1,14 @@
+yeti-cli (2.1.0) stable; urgency=low
+
+  * remove xmlrpc support
+  * remove non-dotted mode
+  * remove remote autocompletion
+  * use long completion hints
+  * ignore completion tree clear option on batch commands
+  * fix config example
+
+ -- Michael Furmur <m.furmur@gmail.com>  Wed, 31 Jan 2018 18:54:55 +0200
+
 yeti-cli (2.0.1p1) stable; urgency=low
 
   * fix depends
