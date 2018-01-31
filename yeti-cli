@@ -4,7 +4,6 @@ from __future__ import print_function
 import os
 import sys
 import signal
-import xmlrpclib
 import pprint
 import syslog
 import socket
@@ -16,7 +15,6 @@ import requests
 import readline
 import re
 
-from enum import Enum
 from cmd import Cmd
 
 __version__ = 'REPLACE-ME'
@@ -233,13 +231,7 @@ def measure_duration(wrapped):
 
 
 class Shell(Cmd):
-    JSON_RPC_KEY = 'rpc_endpoint'
-    XML_RPC_KEY = 'rpc_uri'
-    DOTTED_RPC_KEY = 'dotted'
-
-    class RpcType(Enum):
-        xml = 1
-        json = 2
+    ENDPOINT_KEY = 'rpc_endpoint'
 
     def __init__(self):
         self.user = os.getenv('YETICLI_USER', 'anonymous')
@@ -253,42 +245,16 @@ class Shell(Cmd):
         self.completion_tree = None
         self.tree_autoload = False
         self.tree_clear_on_use = False
-        self.dotted_mode_by_default = False
         Cmd.__init__(self)
 
     def sigint_handler(self, signum, frame):
         self.stdout.write('\n'+self.prompt)
         self.stdout.flush()
 
-    def rpc_do(self, args):
-        if self.c_node.get(u'id') is None:
-            return None
-        addr = self.c_node['rpc_addr']
-        rpc_type = self.c_node['rpc_type']
-
-        for i,a in enumerate(args):
-            if a=='empty':
-                args[i] = ''
-
-        #if len(args)==1 and args[0]=='_list':
-        #    args = ['core','_list']
-
-        if rpc_type is self.RpcType.xml:
-            s = xmlrpclib.ServerProxy(addr)
-            data = s.di(args[0], *args[1:])
-            return data
-        elif rpc_type is self.RpcType.json:
-            j = JsonRpcProxy(addr,self._timeout)
-            data = j.call_remote('.'.join(args[:2]),args[2:])
-            return data
-        else:
-            raise BaseException("unknown rpc type for node {}".format(self.c_node.get(u'id')))
-
     def rpc_do_dotted(self, method, args):
         if self.c_node.get(u'id') is None:
             return None
         addr = self.c_node['rpc_addr']
-        rpc_type = self.c_node['rpc_type']
 
         method = method.rstrip('.')
 
@@ -296,36 +262,8 @@ class Shell(Cmd):
             if a=='empty':
                 args[i] = ''
 
-        if rpc_type is self.RpcType.xml:
-            s = xmlrpclib.ServerProxy(addr)
-            data = s.di(method, args)
-            return data
-        elif rpc_type is self.RpcType.json:
-            j = JsonRpcProxy(addr,self._timeout)
-            data = j.call_remote(method,args)
-            return data
-        else:
-            raise BaseException("unknown rpc type for node {}".format(self.c_node.get(u'id')))
-
-    def rpc_complete(self, args):
-        try:
-            a = args[:]
-            if self.completion_tree:
-                layer = self.completion_tree
-                while a:
-                    key = a.pop(0)
-                    if key not in layer.keys():
-                        return [ c+' ' for c in layer.keys()]
-                    l = layer[key]
-                    if l:
-                        layer = l
-                    elif not a:
-                        return []
-                return [ c+' ' for c in layer.keys()]
-            a.append('_list')
-            return [(c[0] if isinstance(c,list) else c) +' ' for c in self.rpc_do(a)]
-        except BaseException as err:
-            return None
+        j = JsonRpcProxy(addr,self._timeout)
+        return j.call_remote(method,args)
 
     def rpc_complete_dotted(self, method):
         try:
@@ -333,16 +271,12 @@ class Shell(Cmd):
             match_suffix = a[-1]
 
             if not method:
-                list_method = '_list'
                 prefix = ''
             elif method.endswith('.'):
-                list_method = method + '_list'
                 prefix = method
             elif method.count('.'):
                 prefix = '.'.join(a[:-1])+'.'
-                list_method = prefix + '.' + '_list'
             else:
-                list_method = '_list'
                 prefix = ''
 
             final_path = False
@@ -375,17 +309,18 @@ class Shell(Cmd):
                             layer = None
                 if ret is None:
                     ret = layer.keys()
-                out = [ c for c in ret if c.startswith(match_suffix) ]
+
+                out = [ prefix + c for c in ret if c.startswith(match_suffix) ]
+
                 if len(out)==1 and not final_path:
                     out = [ out[0] + '.' ]
-            else:
-                #remote completion
-                rpc_ret = self.rpc_do_dotted(list_method,[])
-                ret = [ (c[0] if isinstance(c,list) else c) for c in rpc_ret]
-                out = [ c for c in ret if c.startswith(match_suffix) ]
 
-            if len(out)==1:
-                out = [ prefix + out[0] ]
+            else:
+                return []
+
+            #~ if len(out)==1:
+                #~ out = [ prefix + out[0] ]
+
             return out
 
         except BaseException as err:
@@ -405,10 +340,7 @@ class Shell(Cmd):
                 if len(cc) > 1:
                     print("{}...".format(args[0]))
 
-                if self.is_dotted_rpc():
-                    data = self.rpc_do_dotted(cmds[0],cmds[1:])
-                else:
-                    data = self.rpc_do(cmds)
+                data = self.rpc_do_dotted(cmds[0],cmds[1:])
 
                 if keys:
                     data = filter_data(data, keys)
@@ -435,7 +367,7 @@ class Shell(Cmd):
         tmp_node_id = self.c_node.get(u'id')
         result = []
         for i in (n.get(u'id') for n in self.nodes):
-            self.switch_to_node(i)
+            self.switch_to_node(i,True)
             r = self.rpc_command(line)
             if r is None:
                 print("There's no data from node {}".format(i))
@@ -452,42 +384,23 @@ class Shell(Cmd):
                 r = {'request_result': r}
                 r.update(a_fields)
                 result.append(r)
-        self.switch_to_node(tmp_node_id)
+        self.switch_to_node(tmp_node_id,True)
         self.gprint(result)
 
     def complete_all(self, text, line, begidx, endidx):
         return self.completedefault(text, ' '.join(line.split()[1:]), begidx, endidx)
 
     def completenames(self, text, *ignored):
-        dotext = 'do_'+text
-        r = [a[3:] for a in self.get_names() if a.startswith(dotext)]
+        if text.count('.'):
+            r = []
+        else:
+            dotext = 'do_'+text
+            r = [a[3:] for a in self.get_names() if a.startswith(dotext)]
+
         if self.c_node.get(u'id') is None:
             return r
-        if self.is_dotted_rpc():
-            return r+[a for a in self.rpc_complete_dotted(text)]
-        else:
-            return r+[a for a in self.rpc_complete([]) if a.startswith(text)]
 
-    def completedefault(self, text, line, begidx, endidx):
-        if self.c_node.get(u'id') is None:
-            return []
-        q = line.split()
-        if len(q) and q[0] in [a[3:] for a in self.get_names()]:
-            return []
-
-        if self.is_dotted_rpc():
-            return []
-        else:
-            c = self.rpc_complete(q)
-
-        if c is None:
-            if self.is_dotted_rpc():
-                return []
-            p = self.rpc_complete(q[:-1])
-            c = [] if p is None else p
-            if len(c)==1 and c[0]==q[-1]:
-                c = []
-        return [a for a in c if a.startswith(text)]
+        return r+[a for a in self.rpc_complete_dotted(text)]
 
     def emptyline(self):
         pass
@@ -511,8 +424,7 @@ class Shell(Cmd):
             if p and not p.search(str(n.get(u'id'))):
                 continue
             d.append({ " node_id": n.get(u'id'),
-                       "endpoint": '{0}: {1}'.format(n.get(u'rpc_type'), n.get(u'rpc_addr')),
-                       "dotted": n.get(self.DOTTED_RPC_KEY)
+                       "endpoint": '{0}'.format(n.get(u'rpc_addr'))
                     })
         if d:
             formated_print(d)
@@ -541,7 +453,7 @@ class Shell(Cmd):
             if not p.search(str(i)):
                 continue
             have_matched_node = True
-            self.switch_to_node(i)
+            self.switch_to_node(i,True)
             print('>> ',i)
             r = self.rpc_command(rpc_line)
             self.gprint(r)
@@ -550,7 +462,7 @@ class Shell(Cmd):
         if not have_matched_node:
             print("no any node matched with your regular expression")
         else:
-            self.switch_to_node(tmp_node_id)
+            self.switch_to_node(tmp_node_id,True)
 
     def complete_apply(self, text, line, begidx, endidx):
         if len(line.split()) < 2:
@@ -570,9 +482,6 @@ class Shell(Cmd):
             self.c_node.get(u'id'),
         )
         print("node changed from {} to {}".format(prev_node_id, self.c_node.get(u'id')))
-
-    def is_dotted_rpc(self):
-        return self.c_node.get(self.DOTTED_RPC_KEY)
 
     def do_use(self, arg):
         'use <node_id> - set current node'
@@ -611,9 +520,10 @@ class Shell(Cmd):
         if self.c_node.get(u'id') is None:
             raise BaseException('no active node')
         try :
-            self.completion_tree = self.rpc_do(['_tree'])
+            self.completion_tree = self.rpc_do_dotted('_tree',[])
             print("local completion tree is loaded")
-        except:
+        except Exception,e:
+            print(e)
             print("failed to load local completion tree from the node: ",self.c_node.get(u'id'))
             self.completion_tree = None
 
@@ -664,25 +574,17 @@ class Shell(Cmd):
 
             for node in self.nodes:
                 node['id'] = str(node['id'])
-                if self.JSON_RPC_KEY in node and node[self.JSON_RPC_KEY]:
-                    node['rpc_type'] = self.RpcType.json
-                    node['rpc_addr'] = node[self.JSON_RPC_KEY]
-                else:
-                    node['rpc_type'] = self.RpcType.xml
-                    node['rpc_addr'] = node[self.XML_RPC_KEY]
-
-                if self.DOTTED_RPC_KEY not in node:
-                    node[self.DOTTED_RPC_KEY] = self.dotted_mode_by_default
+                node['rpc_addr'] = node[self.ENDPOINT_KEY]
 
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, TypeError) as err:
             print(err)
             sys.exit(-1)
 
-    def switch_to_node(self, arg):
+    def switch_to_node(self, arg, no_clear = False):
         for n in self.nodes:
             if n[u'id'] == arg:
                 self.c_node = n
-                if self.tree_clear_on_use:
+                if (not no_clear) and self.tree_clear_on_use:
                     self.completion_tree = None
                 break
         else:

@@ -1,11 +1,6 @@
 nodes:
    - id: local
      rpc_endpoint: 127.0.0.1:7080
-#   - id: local_forced_dotted_rpc
-#     rpc_endpoint: 127.0.0.1:7080
-#     dotted: True
-#   - id: local_xml
-#     rpc_uri: 127.0.0.1:8090
 
 # load nodes list from API
 #nodes_url: 'http://127.0.0.1:3000/api/rest/system/nodes.json'
@@ -24,6 +19,3 @@ timeout: 5
 
 # clean local completion tree on switching between nodes (default: False)
 #tree_clear_on_use: True
-
-# default dotted mode if not specified for node (default: True)
-#dotted_by_default: False
