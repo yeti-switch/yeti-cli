@@ -7,6 +7,7 @@ import signal
 import pprint
 import syslog
 import socket
+import atexit
 import time
 import json
 import traceback
@@ -20,6 +21,9 @@ from cmd import Cmd
 __version__ = 'REPLACE-ME'
 
 CFG_PATH = '/etc/yeti/yeti-cli.yml'
+HISTORY_PATH = os.path.expanduser('~/.yeticli_history')
+HISTORY_LENGTH = 100
+HISTORY_ENTRIES_TO_SHOW_DEFAULT = 15
 
 def byteify(input):
     if isinstance(input, dict):
@@ -590,6 +594,33 @@ class Shell(Cmd):
         else:
             raise BaseException("can't switch to node {}".format(arg))
 
+    def do_history(self,arg):
+        "show commands history"
+        entries_count = HISTORY_ENTRIES_TO_SHOW_DEFAULT
+        try:
+            if arg:
+                entries_count = int(arg)
+        except:
+            pass
+
+        last_entry_index = readline.get_current_history_length()
+        entries_count = min(entries_count, last_entry_index)
+        entry_index = last_entry_index-entries_count
+        while entry_index <= last_entry_index:
+            print(entry_index, readline.get_history_item(entry_index))
+            entry_index+=1
+
+    def init_history(self, histfile):
+        try:
+            readline.read_history_file(histfile)
+        except IOError:
+            pass
+        atexit.register(self.save_history, histfile)
+
+    def save_history(self, histfile):
+        readline.set_history_length(HISTORY_LENGTH)
+        readline.write_history_file(histfile)
+
     def preloop(self):
         self.read_cfg()
 
@@ -626,6 +657,7 @@ class Shell(Cmd):
         signal.signal(signal.SIGINT, self.sigint_handler)
         self.ip = os.getenv('SSH_CLIENT', 'Local')
         readline.set_completer_delims(readline.get_completer_delims().replace('-',''))
+        self.init_history(HISTORY_PATH)
 
     def gprint(self, data):
         print('\33[0m',end='')

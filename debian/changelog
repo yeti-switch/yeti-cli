@@ -1,3 +1,10 @@
+yeti-cli (2.1.1) stable; urgency=low
+
+  * save commands history to the file ~/.yeticli_history
+  * add local command 'history' to show history
+
+ -- Michael Furmur <m.furmur@gmail.com>  Fri, 02 Feb 2018 13:38:37 +0200
+
 yeti-cli (2.1.0) stable; urgency=low
 
   * remove xmlrpc support
