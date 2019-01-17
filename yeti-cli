@@ -86,7 +86,13 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
             while len(response_string) < byte_length:
                 #print 'Receiving bytedata bytes...'
                 response_string += str(self.socket.recv(byte_length-len(response_string)))
-            response = json.loads(response_string)
+            try:
+                response = json.loads(response_string)
+            except Exception, e:
+                print("failed to parse reply json")
+                print(e)
+                print("raw data:")
+                return response_string
         # except ConnectionLost:
         #     self.connect()
         #     return self.call_remote(method, params)
