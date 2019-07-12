@@ -60,10 +60,12 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
     def close(self):
         self.socket.close()
 
-    def call_remote(self, method, params={}, retries=0):
+    def call_remote(self, method, params={}, verbose = False):
         self._incrementor += 1
         jsonrpc_request = {"jsonrpc": self._version, "id": self._incrementor, "method": method, "params": params}
         string = json.dumps(jsonrpc_request)
+        if verbose:
+            print(string)
         jsonrpc = str(len(string)) + ":" + string + ","
 
         try:
@@ -93,6 +95,7 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
                 print(e)
                 print("raw data:")
                 return response_string
+                #return "failed to parse reply json\n" + str(e) + "\nraw data:\n" + response_string
         # except ConnectionLost:
         #     self.connect()
         #     return self.call_remote(method, params)
@@ -261,7 +264,7 @@ class Shell(Cmd):
         self.stdout.write('\n'+self.prompt)
         self.stdout.flush()
 
-    def rpc_do_dotted(self, method, args):
+    def rpc_do_dotted(self, method, args, verbose = False):
         if self.c_node.get(u'id') is None:
             return None
         addr = self.c_node['rpc_addr']
@@ -273,7 +276,7 @@ class Shell(Cmd):
                 args[i] = ''
 
         j = JsonRpcProxy(addr,self._timeout)
-        return j.call_remote(method,args)
+        return j.call_remote(method,args,verbose)
 
     def rpc_complete_dotted(self, method):
         try:
@@ -371,6 +374,35 @@ class Shell(Cmd):
         print('\33[0m')
         sys.exit()
 
+    def do_raw(self, line):
+        result = None
+        try:
+            syslog.syslog('{}: {}->{}'.format(self.ip, self.c_node.get(u'id'), line))
+            if self.c_node.get(u'id') is None:
+                raise BaseException("you should choose node first")
+            cc = [c.strip() for c in line.split('&')]
+            for c in cc:
+                args = c.split('|')
+                cmds = args[0].split()
+                if len(cmds) != 2:
+                    raise BaseException("usage: raw method json_data")
+                keys = args[1].strip() if len(args) > 1 else None
+                if len(cc) > 1:
+                    print("{}...".format(args[0]))
+
+                result = self.rpc_do_dotted(cmds[0],json.loads(cmds[1]),True)
+
+                if keys:
+                    result = filter_data(data, keys)
+                else:
+                    if keys is not None:
+                        result = result[1]
+
+            self.gprint(result)
+
+        except BaseException as err:
+            print(err)
+
     #@measure_duration
     def do_all(self, line):
         'apply rpc_cmd for all nodes from config'
@@ -467,6 +499,40 @@ class Shell(Cmd):
             print('>> ',i)
             r = self.rpc_command(rpc_line)
             self.gprint(r)
+            print()
+
+        if not have_matched_node:
+            print("no any node matched with your regular expression")
+        else:
+            self.switch_to_node(tmp_node_id,True)
+
+
+    def do_apply_raw(self,line):
+        'run raw commmand for nodes matched with regular expression'
+
+        args = line.split(' ',1)
+        if len(args) < 2:
+            print("wrong arguments number. expected regular expression followed by rpc command")
+
+        try:
+            p = re.compile(args[0])
+        except re.error as e:
+            print(" > invalid regular expression :",e)
+            return
+
+        tmp_node_id = self.c_node.get(u'id')
+        have_matched_node = False
+        rpc_line = args[1]
+
+        for i in (n.get(u'id') for n in self.nodes):
+            if not p.search(str(i)):
+                continue
+            have_matched_node = True
+            self.switch_to_node(i,True)
+            print('>> ',i)
+            r = self.rpc_command(rpc_line)
+            self.do_raw(rpc_line)
+            #~ self.gprint(r)
             print()
 
         if not have_matched_node:
