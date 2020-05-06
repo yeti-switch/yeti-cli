@@ -237,7 +237,7 @@ def can_formating(data):
             if isinstance(v, (list, dict)):
                 return False
     elif isinstance(data, list):
-        if isinstance(data[0],(int,long,float)):
+        if isinstance(data[0],(int,float)):
             return False
         v_len = len(data[0])
         for v in data:
@@ -245,11 +245,11 @@ def can_formating(data):
                 return False
             elif isinstance(v,dict) and not can_formating(v):
                 return False
-            elif isinstance(v, (int, long, basestring, float)):
+            elif isinstance(v, (int, str, float)):
                 return False
             elif v_len != len(v):
                 return False
-    elif isinstance(data, (int, long, basestring, float)):
+    elif isinstance(data, (int, str, float)):
         return False
     return True
 
