@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import print_function
 
 import os
 import sys
@@ -15,8 +14,7 @@ import yaml
 import requests
 import readline
 import re
-
-from cmd import Cmd
+import cmd
 
 __version__ = 'REPLACE-ME'
 
@@ -263,8 +261,17 @@ def measure_duration(wrapped):
         return result
     return _wrapped
 
+# https://stackoverflow.com/questions/37378185/handle-ctrl-c-in-python-cmd-module
+def input_swallowing_interrupt(_input):
+    def _input_swallowing_interrupt(*args):
+        try:
+            return _input(*args)
+        except KeyboardInterrupt:
+            print('^C')
+            return '\n'
+    return _input_swallowing_interrupt
 
-class Shell(Cmd):
+class Shell(cmd.Cmd):
     ENDPOINT_KEY = 'rpc_endpoint'
 
     def __init__(self):
@@ -279,11 +286,15 @@ class Shell(Cmd):
         self.completion_tree = None
         self.tree_autoload = False
         self.tree_clear_on_use = False
-        Cmd.__init__(self)
+        cmd.Cmd.__init__(self)
 
-    def sigint_handler(self, signum, frame):
-        self.stdout.write('\n'+self.prompt)
-        self.stdout.flush()
+    def cmdloop(self, *args, **kwargs):
+        old_input_fn = cmd.__builtins__['input']
+        cmd.__builtins__['input'] = input_swallowing_interrupt(old_input_fn)
+        try:
+            super().cmdloop(*args, **kwargs)
+        finally:
+            cmd.__builtins__['input'] = old_input_fn
 
     def rpc_do_dotted(self, method, args, verbose = False):
         if self.c_node.get(u'id') is None:
@@ -747,7 +758,6 @@ class Shell(Cmd):
                 print("use the first node from list")
                 self.do_use(str(self.nodes[0].get(u'id')))
 
-        signal.signal(signal.SIGINT, self.sigint_handler)
         self.ip = os.getenv('SSH_CLIENT', 'Local')
         readline.set_completer_delims(readline.get_completer_delims().replace('-',''))
         self.init_history(HISTORY_PATH)
