@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-from __future__ import print_function
+#!/usr/bin/env python3
 
 import os
 import sys
@@ -15,8 +14,7 @@ import yaml
 import requests
 import readline
 import re
-
-from cmd import Cmd
+import cmd
 
 __version__ = 'REPLACE-ME'
 
@@ -28,10 +26,10 @@ HISTORY_ENTRIES_TO_SHOW_DEFAULT = 15
 def byteify(input):
     if isinstance(input, dict):
         return {byteify(key): byteify(value)
-                for key, value in input.iteritems()}
+                for key, value in input.items()}
     elif isinstance(input, list):
         return [byteify(element) for element in input]
-    elif isinstance(input, unicode):
+    elif isinstance(input, bytes):
         return input.encode('utf-8')
     else:
         return input
@@ -60,70 +58,90 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
     def close(self):
         self.socket.close()
 
-    def call_remote(self, method, params={}, verbose = False):
-        self._incrementor += 1
-        jsonrpc_request = {"jsonrpc": self._version, "id": self._incrementor, "method": method, "params": params}
-        string = json.dumps(jsonrpc_request)
-        if verbose:
-            print(string)
-        jsonrpc = str(len(string)) + ":" + string + ","
+    def reset_timeout(self):
+        self.socket.settimeout(self._timeout)
 
+    def set_timeout(self, timeout):
+        self.socket.settimeout(timeout)
+
+    def recv(self, verbose = False):
         try:
-            #print 'Sending message: %s' % jsonrpc
-            self.socket.send(jsonrpc)
             byte_length = self.socket.recv(1, socket.MSG_WAITALL)
 
             if not byte_length:
                 raise ConnectionLost()
 
-            while byte_length[-1] != ':':
-                #print 'Receiving byte length (next char)...'
+            while byte_length[-1] != ord(':'):
+            #~ while str(byte_length[-1]) != ':':
                 byte_length += self.socket.recv(1)
 
-            byte_length = int(byte_length[:-1])
-
-            #print 'Got byte length:', byte_length
+            byte_length = int(byte_length[:-1].decode('utf-8'))
 
             response_string = ''
             while len(response_string) < byte_length:
-                #print 'Receiving bytedata bytes...'
-                response_string += str(self.socket.recv(byte_length-len(response_string)))
+                response_string += str(self.socket.recv(byte_length-len(response_string)),'utf-8')
+
+            # ~ if verbose:
+                # ~ print("raw data:\n'''\n",response_string,"\n'''")
+
             try:
                 response = json.loads(response_string)
-            except Exception, e:
-                print("failed to parse reply json")
+            except Exception as e:
+                print("failed to parse json reply")
                 print(e)
-                print("raw data:")
+                print("raw data:\n'''\n",response_string,"\n'''")
                 return response_string
-                #return "failed to parse reply json\n" + str(e) + "\nraw data:\n" + response_string
-        # except ConnectionLost:
-        #     self.connect()
-        #     return self.call_remote(method, params)
-        except Exception, e:
+        except Exception as e:
             traceback_string = traceback.format_exc()
-            syslog.syslog('{}'.format(traceback_string))
             raise e
 
-        if not response['id'] == self._incrementor:
+        # ~ if verbose:
+            # ~ print('decoded response: "', response,'"')
+
+        if 'id' in response and not response['id'] == str(self._incrementor):
             raise JsonRpcError('Bad sequence ID ({}, expected {})'.format(response['id'], self._incrementor))
 
         last_char = self.socket.recv(1)
 
-        if last_char != ',':
+        if last_char.decode('utf-8') != ',':
             raise JsonRpcError("Expected a comma as a jsonrpc terminator!")
 
         if 'result' in response:
             return response['result']
+        elif 'params' in response and 'method' in response:
+            return [response['method'], response['params']]
         elif 'error' in response:
             raise JsonRpcError(response['error'])
         else:
-            raise JsonRpcError('Unknow error. Response: {}'.format(response))
+            raise JsonRpcError('Unknown error. Response: {}'.format(response))
+
+    def send(self, method, params={}, verbose = False, notification = False):
+        if notification:
+            jsonrpc_request = {"jsonrpc": self._version, "method": method, "params": params}
+        else:
+            self._incrementor += 1
+            jsonrpc_request = {"jsonrpc": self._version, "id": str(self._incrementor), "method": method, "params": params}
+
+        string = json.dumps(jsonrpc_request)
+        if verbose:
+            print(string)
+        jsonrpc = str(len(string)) + ":" + string + ","
+
+        self.socket.sendall(jsonrpc.encode('utf-8'))
+
+        if notification:
+            return
+
+        return self.recv(verbose)
+
+    def call_remote(self, method, params, verbose = False):
+        return self.send(method, params, verbose)
 
 def get_config(path):
     path = os.getenv('YETICLI_CFG_PATH', path)
     try:
         with open(os.path.expanduser(path)) as f:
-            cfg = yaml.load(f)
+            cfg = yaml.load(f, Loader=yaml.FullLoader)
     except IOError as e:
         print("Can't open config file {}, {}".format(path, e))
         print("check /usr/share/yeti-cli/yeti-cli.yml.example")
@@ -174,8 +192,9 @@ def make_template(data):
     l = [None] * len(data[0])
     for e in data:
         for n,i in enumerate(l):
-            if len(e[n]) > l[n]:
-                l[n] = len(e[n])
+            length = len(e[n])
+            if not l[n] or (length > l[n]):
+                l[n] = length
     tl = '|'
     for i in l:
         tl = tl + '{{:^{}}}'.format(i+2) + '|'
@@ -216,7 +235,7 @@ def can_formating(data):
             if isinstance(v, (list, dict)):
                 return False
     elif isinstance(data, list):
-        if isinstance(data[0],(int,long,float)):
+        if isinstance(data[0],(int,float)):
             return False
         v_len = len(data[0])
         for v in data:
@@ -224,11 +243,11 @@ def can_formating(data):
                 return False
             elif isinstance(v,dict) and not can_formating(v):
                 return False
-            elif isinstance(v, (int, long, basestring, float)):
+            elif isinstance(v, (int, str, float)):
                 return False
             elif v_len != len(v):
                 return False
-    elif isinstance(data, (int, long, basestring, float)):
+    elif isinstance(data, (int, str, float)):
         return False
     return True
 
@@ -242,8 +261,17 @@ def measure_duration(wrapped):
         return result
     return _wrapped
 
+# https://stackoverflow.com/questions/37378185/handle-ctrl-c-in-python-cmd-module
+def input_swallowing_interrupt(_input):
+    def _input_swallowing_interrupt(*args):
+        try:
+            return _input(*args)
+        except KeyboardInterrupt:
+            print('^C')
+            return '\n'
+    return _input_swallowing_interrupt
 
-class Shell(Cmd):
+class Shell(cmd.Cmd):
     ENDPOINT_KEY = 'rpc_endpoint'
 
     def __init__(self):
@@ -258,11 +286,15 @@ class Shell(Cmd):
         self.completion_tree = None
         self.tree_autoload = False
         self.tree_clear_on_use = False
-        Cmd.__init__(self)
+        cmd.Cmd.__init__(self)
 
-    def sigint_handler(self, signum, frame):
-        self.stdout.write('\n'+self.prompt)
-        self.stdout.flush()
+    def cmdloop(self, *args, **kwargs):
+        old_input_fn = cmd.__builtins__['input']
+        cmd.__builtins__['input'] = input_swallowing_interrupt(old_input_fn)
+        try:
+            super().cmdloop(*args, **kwargs)
+        finally:
+            cmd.__builtins__['input'] = old_input_fn
 
     def rpc_do_dotted(self, method, args, verbose = False):
         if self.c_node.get(u'id') is None:
@@ -598,7 +630,7 @@ class Shell(Cmd):
         try :
             self.completion_tree = self.rpc_do_dotted('_tree',[])
             print("local completion tree is loaded")
-        except Exception,e:
+        except Exception as e:
             print(e)
             print("failed to load local completion tree from the node: ",self.c_node.get(u'id'))
             self.completion_tree = None
@@ -611,7 +643,7 @@ class Shell(Cmd):
         def show_tree(h,l):
             if not h:
                 return
-            for k,v in h.iteritems():
+            for k,v in h.items():
                 print(' '*l*4,k)
                 show_tree(v,l+1)
         if arg:
@@ -726,7 +758,6 @@ class Shell(Cmd):
                 print("use the first node from list")
                 self.do_use(str(self.nodes[0].get(u'id')))
 
-        signal.signal(signal.SIGINT, self.sigint_handler)
         self.ip = os.getenv('SSH_CLIENT', 'Local')
         readline.set_completer_delims(readline.get_completer_delims().replace('-',''))
         self.init_history(HISTORY_PATH)

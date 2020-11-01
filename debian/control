@@ -7,7 +7,7 @@ Standards-Version: 3.9.2
 
 Package: yeti-cli
 Architecture: all
-Depends:  ${misc:Depends}, python, python-yaml, python-requests
+Depends:  ${misc:Depends}, python3, python3-yaml, python3-requests
 Suggests: python-enum
 Description: simple client for jsonrpc
 	command line client for jsonrpc with autocompletion	
