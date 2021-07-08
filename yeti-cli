@@ -141,7 +141,6 @@ def get_config(path):
     path = os.getenv('YETICLI_CFG_PATH', path)
     try:
         with open(os.path.expanduser(path)) as f:
-            if 
             cfg = yaml.safe_load(f)
     except IOError as e:
         print("Can't open config file {}, {}".format(path, e))
