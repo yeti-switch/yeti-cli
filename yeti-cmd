@@ -1,0 +1,138 @@
+#!/usr/bin/env python3
+# get info from remote SEMS in single line mode
+# ex: yeti-cmd 127.0.0.1 yeti.show.calls.count
+import sys
+import socket
+import json
+import traceback
+
+class JsonRpcError(Exception): pass
+
+class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
+    def __init__(self, addr, timeout = 5, version="2.0"):
+        self.host = addr
+        self.port = 7080
+        self._version = version
+        self._timeout = timeout
+        self.connect()
+
+    def connect(self):
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.settimeout(self._timeout)
+        self.socket.connect((self.host, self.port))
+        self._incrementor = 1
+
+    def close(self):
+        self.socket.close()
+
+    def reset_timeout(self):
+        self.socket.settimeout(self._timeout)
+
+    def set_timeout(self, timeout):
+        self.socket.settimeout(timeout)
+
+    def recv(self, verbose = False):
+        try:
+            byte_length = self.socket.recv(1, socket.MSG_WAITALL)
+
+            if not byte_length:
+                raise ConnectionLost()
+
+            while byte_length[-1] != ord(':'):
+            #~ while str(byte_length[-1]) != ':':
+                byte_length += self.socket.recv(1)
+
+            byte_length = int(byte_length[:-1].decode('utf-8'))
+
+            response_string = ''
+            while len(response_string) < byte_length:
+                response_string += str(self.socket.recv(byte_length-len(response_string)),'utf-8')
+
+            # ~ if verbose:
+                # ~ print("raw data:\n'''\n",response_string,"\n'''")
+
+            try:
+                response = json.loads(response_string)
+            except Exception as e:
+                print("failed to parse json reply")
+                print(e)
+                print("raw data:\n'''\n",response_string,"\n'''")
+                return response_string
+        except Exception as e:
+            traceback_string = traceback.format_exc()
+            raise e
+
+        if 'id' in response and not response['id'] == str(self._incrementor):
+            raise JsonRpcError('Bad sequence ID ({}, expected {})'.format(response['id'], self._incrementor))
+
+        last_char = self.socket.recv(1)
+
+        if last_char.decode('utf-8') != ',':
+            raise JsonRpcError("Expected a comma as a jsonrpc terminator!")
+
+        if 'result' in response:
+            return response['result']
+        elif 'params' in response and 'method' in response:
+            return [response['method'], response['params']]
+        elif 'error' in response:
+            raise JsonRpcError(response['error'])
+        else:
+            raise JsonRpcError('Unknown error. Response: {}'.format(response))
+
+    def send(self, method, params={}, verbose = False, notification = False):
+        if notification:
+            jsonrpc_request = {"jsonrpc": self._version, "method": method, "params": params}
+        else:
+            self._incrementor += 1
+            jsonrpc_request = {"jsonrpc": self._version, "id": str(self._incrementor), "method": method, "params": params}
+
+        string = json.dumps(jsonrpc_request)
+        if verbose:
+            print(string)
+        jsonrpc = str(len(string)) + ":" + string + ","
+
+        self.socket.sendall(jsonrpc.encode('utf-8'))
+
+        if notification:
+            return
+
+        return self.recv(verbose)
+
+    def call_remote(self, method, params, verbose = False):
+        return self.send(method, params, verbose)
+
+class CommandLineCall:
+    def rpc_do_dotted(self,addr, method, args, verbose = False):
+        method = method.rstrip('.')
+        for i,a in enumerate(args):
+            if a=='empty':
+                args[i] = ''
+        j = JsonRpcProxy(addr,5)
+        return j.call_remote(method,args,verbose)
+
+   
+
+if __name__ == '__main__':
+    try:
+        addr = sys.argv[1] 
+    except:
+         addr = False
+    try:
+        command = sys.argv[2]
+    except:
+         command = False
+    try:
+        parameters = sys.argv[3]
+    except:
+        parameters = []
+    try:
+        if (addr and command):
+            data =  CommandLineCall().rpc_do_dotted(addr,command,parameters)
+            print(data)
+        else:
+            print('please input an address and a method. Ex: yeti-cmd 127.0.0.1 yeti.show.calls.count')
+          
+    except IOError as e:
+        print(e)
+    except KeyboardInterrupt as e:
+        print('')
