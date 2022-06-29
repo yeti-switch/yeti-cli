@@ -1,8 +1,6 @@
 name: Build docker images
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '6 9 * * SUN'
 
 jobs:
   deb11-build-image:
