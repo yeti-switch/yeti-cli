@@ -1,6 +1,5 @@
 name: Build docker images
-on:
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
   deb11-build-image:
