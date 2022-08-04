@@ -1,3 +1,7 @@
+yeti-cli (2.1.3) stable; urgency=low
+  * add tcp md5 signature support
+ -- Michael Furmur <furmur@pm.me>  Thu, 04 Aug 2022 17:17:44 +0300
+
 yeti-cli (2.1.2) stable; urgency=low
 
   * add raw,apply_raw commands
