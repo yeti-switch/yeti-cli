@@ -1,3 +1,7 @@
+yeti-cli (2.1.4) stable; urgency=low
+  * fix connect on empty md5 pass
+ -- Michael Furmur <furmur@pm.me>  Fri, 05 Aug 2022 01:10:40 +0300
+
 yeti-cli (2.1.3) stable; urgency=low
   * add tcp md5 signature support
  -- Michael Furmur <furmur@pm.me>  Thu, 04 Aug 2022 17:17:44 +0300
