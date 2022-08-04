@@ -1,6 +1,7 @@
 nodes:
    - id: local
      rpc_endpoint: 127.0.0.1:7080
+     #tcp_md5_password: test
 
 # load nodes list from API
 #nodes_url: 'http://127.0.0.1:3000/api/rest/system/nodes.json'
