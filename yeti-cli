@@ -47,7 +47,7 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
             self.host = addr
             self.port = 7080
 
-        self.tcp_md5_pass = tcp_md5_pass.encode('utf-8')
+        self.tcp_md5_pass = tcp_md5_pass and tcp_md5_pass.encode('utf-8') or None
         self._version = version
         self._timeout = timeout
 
