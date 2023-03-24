@@ -1,3 +1,7 @@
+yeti-cli (2.1.5) stable; urgency=low
+  * add yeti-cmd
+ -- Michael Furmur <furmur@pm.me>  Fri, 24 Mar 2023 21:21:14 +0200
+
 yeti-cli (2.1.4) stable; urgency=low
   * fix connect on empty md5 pass
  -- Michael Furmur <furmur@pm.me>  Fri, 05 Aug 2022 01:10:40 +0300
