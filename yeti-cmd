@@ -10,8 +10,12 @@ class JsonRpcError(Exception): pass
 
 class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
     def __init__(self, addr, timeout = 5, version="2.0"):
-        self.host = addr
-        self.port = 7080
+        if ':' in addr:
+            (self.host,self.port) = addr.split(':')
+            self.port = int(self.port)
+        else:
+            self.host = addr
+            self.port = 7080
         self._version = version
         self._timeout = timeout
         self.connect()
