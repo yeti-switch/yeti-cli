@@ -53,8 +53,8 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
             while len(response_string) < byte_length:
                 response_string += str(self.socket.recv(byte_length-len(response_string)),'utf-8')
 
-            # ~ if verbose:
-                # ~ print("raw data:\n'''\n",response_string,"\n'''")
+            if verbose:
+                print('<',response_string)
 
             try:
                 response = json.loads(response_string)
@@ -93,7 +93,7 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
 
         string = json.dumps(jsonrpc_request)
         if verbose:
-            print(string)
+            print('>',string)
         jsonrpc = str(len(string)) + ":" + string + ","
 
         self.socket.sendall(jsonrpc.encode('utf-8'))
@@ -131,12 +131,14 @@ usage: yeti-cmd addr[:port] method [- | param [, param [...]]]
            param special values:
              'empty' - pass null in the list
              '-'     - use JSON from stdin as 'params'
+env:
+  VERBOSE=1 - show raw requests/replies
 
 examples:
     yeti-cmd 127.0.0.1 yeti.show.calls.count
     yeti-cmd 127.0.0.1 core.set.log-level.syslog 3
     yeti-cmd 127.0.0.1 registrar_client.createRegistration 1 test.domain user empty auth_user auth_pass
-    echo '["3"]' | yeti-cmd 127.0.0.1 core.set.log-level.syslog -
+    echo '["3"]' | VERBOSE=1 yeti-cmd 127.0.0.1 core.set.log-level.syslog -
 ''')
 
 if __name__ == '__main__':
@@ -153,7 +155,9 @@ if __name__ == '__main__':
 
     try:
         if (addr and command):
-            data =  CommandLineCall().rpc_do_dotted(addr,command,parameters)
+            data =  CommandLineCall().rpc_do_dotted(
+                addr, command, parameters,
+                os.getenv('VERBOSE')=='1')
             print(data)
         else:
             usage()
