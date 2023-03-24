@@ -143,13 +143,14 @@ examples:
 
 if __name__ == '__main__':
     try:
-        addr = sys.argv[1] 
+        addr = sys.argv[1]
     except:
-         addr = False
+        addr = False
+
     try:
         command = sys.argv[2]
     except:
-         command = False
+        command = False
 
     parameters = sys.argv[3:]
 
@@ -158,7 +159,7 @@ if __name__ == '__main__':
             data =  CommandLineCall().rpc_do_dotted(
                 addr, command, parameters,
                 os.getenv('VERBOSE')=='1')
-            print(data)
+            print(json.dumps(data,sort_keys=True, indent=4))
         else:
             usage()
     except IOError as e:
