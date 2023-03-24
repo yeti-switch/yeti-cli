@@ -2,6 +2,7 @@
 # get info from remote SEMS in single line mode
 # ex: yeti-cmd 127.0.0.1 yeti.show.calls.count
 import sys
+import os
 import socket
 import json
 import traceback
@@ -107,14 +108,36 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
 
 class CommandLineCall:
     def rpc_do_dotted(self,addr, method, args, verbose = False):
-        method = method.rstrip('.')
+
         for i,a in enumerate(args):
             if a=='empty':
                 args[i] = ''
+            elif a=='-':
+                args = json.loads(sys.stdin.read())
+                break
+
         j = JsonRpcProxy(addr,5)
+
         return j.call_remote(method,args,verbose)
 
-   
+def usage():
+    print('''
+usage: yeti-cmd addr[:port] method [- | param [, param [...]]]
+
+  addr   - endpoint FQDN/IP address
+  port   - endpoint port
+  method - jsonrpc method
+  param  - each arg that follows method will be added as the string to the jsonrpc 'params' list.
+           param special values:
+             'empty' - pass null in the list
+             '-'     - use JSON from stdin as 'params'
+
+examples:
+    yeti-cmd 127.0.0.1 yeti.show.calls.count
+    yeti-cmd 127.0.0.1 core.set.log-level.syslog 3
+    yeti-cmd 127.0.0.1 registrar_client.createRegistration 1 test.domain user empty auth_user auth_pass
+    echo '["3"]' | yeti-cmd 127.0.0.1 core.set.log-level.syslog -
+''')
 
 if __name__ == '__main__':
     try:
@@ -125,17 +148,15 @@ if __name__ == '__main__':
         command = sys.argv[2]
     except:
          command = False
-    try:
-        parameters = sys.argv[3]
-    except:
-        parameters = []
+
+    parameters = sys.argv[3:]
+
     try:
         if (addr and command):
             data =  CommandLineCall().rpc_do_dotted(addr,command,parameters)
             print(data)
         else:
-            print('please input an address and a method. Ex: yeti-cmd 127.0.0.1 yeti.show.calls.count')
-          
+            usage()
     except IOError as e:
         print(e)
     except KeyboardInterrupt as e:
