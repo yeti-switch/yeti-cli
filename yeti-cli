@@ -797,8 +797,8 @@ class Shell(cmd.Cmd):
         if self.formatting and can_formating(data):
             formated_print(byteify(data))
         else:
-            pprint.PrettyPrinter(indent=4).pprint(byteify(data))
-
+            #pprint.PrettyPrinter(indent=4).pprint(byteify(data))
+            print(json.dumps(data,sort_keys=True, indent=4))
 
 if __name__ == '__main__':
     try:
