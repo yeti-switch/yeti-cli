@@ -490,6 +490,7 @@ class Shell(cmd.Cmd):
                 result.append(r)
         self.switch_to_node(tmp_node_id,True)
         self.gprint(result)
+        print()
 
     def complete_all(self, text, line, begidx, endidx):
         return self.completedefault(text, ' '.join(line.split()[1:]), begidx, endidx)
