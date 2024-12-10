@@ -1,3 +1,8 @@
+yeti-cli (2.1.6) stable; urgency=low
+  * yeti-cli: use json.dumps for unformatted input
+  * yeti-cli: fix newline ending for 'all' command output
+ -- Michael Furmur <furmur@pm.me>  Tue, 10 Dec 2024 15:05:40 +0200
+
 yeti-cli (2.1.5) stable; urgency=low
   * add yeti-cmd
  -- Michael Furmur <furmur@pm.me>  Fri, 24 Mar 2023 21:21:14 +0200
