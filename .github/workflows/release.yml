@@ -1,0 +1,53 @@
+name: Release process
+
+on:
+  release:
+    types: [ published ]
+
+jobs:
+  deb12:
+    name: Debian 12 release package building
+    runs-on: ubuntu-latest
+    container: debian:bookworm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: set git safe directory
+        run: git config --global --add safe.directory '*'
+
+      - name: Build package
+        run: make package
+          
+      - name: Save deb package as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-package
+          path: /__w/yeti-client/*.deb
+
+      - name: Setup deb-s3
+        run: gem install deb-s3
+
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+        
+      - name: Upload package
+        env:
+          AWS_ACCESS_KEY_ID: ${{secrets.DEB_AWS_ACCESS_KEY_ID}}
+          AWS_SECRET_ACCESS_KEY: ${{secrets.DEB_AWS_SECRET_ACCESS_KEY}}
+          AWS_ENDPOINT_URL: ${{secrets.DEB_AWS_ENDPOINT}}
+        run: deb-s3 upload \
+               --bucket=${{secrets.DEB_AWS_BUCKET}} \
+               --prefix=1.13 \
+               --codename=bookworm \
+               --component=main \
+               --visibility=nil \
+               --force-path-style \
+               --sign=B104E10C35895CFAC0F91473C8D3BC80B6F22179 \
+               --gpg-options "\-\-pinentry-mode=loopback \-\-no-tty \-\-batch \-\-yes \-\-passphrase ${{ secrets.GPG_PASSPHRASE }}" \
+               ../*.deb
+
