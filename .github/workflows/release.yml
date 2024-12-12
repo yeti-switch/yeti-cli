@@ -23,6 +23,12 @@ jobs:
 
       - name: Build package
         run: make package
+
+      - name: Save deb package as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-package
+          path: /__w/yeti-cli/*.deb
           
       - name: Setup deb-s3
         run: gem install deb-s3
@@ -39,4 +45,47 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{secrets.DEB_AWS_SECRET_ACCESS_KEY}}
           AWS_ENDPOINT_URL: ${{secrets.DEB_AWS_ENDPOINT}}
         run: deb-s3 upload --bucket=${{secrets.DEB_AWS_BUCKET}} --prefix=1.13 --codename=bookworm --component=main --visibility=nil --force-path-style --sign=B104E10C35895CFAC0F91473C8D3BC80B6F22179 --gpg-options "\-\-pinentry-mode=loopback \-\-no-tty \-\-batch \-\-yes \-\-passphrase ${{ secrets.GPG_PASSPHRASE }}" ../*.deb
+
+  deb12_container:
+    name: Debian 12 release container
+    needs: deb12
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download a single artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deb12-package
+
+      - name: Display structure of downloaded files
+        run: ls -la
+
+      - name: Display path
+        run: pwd
+
+      - name: Calculate version from ${{github.ref}}
+        env:
+          PKG_TAG: ${{github.ref}}
+        shell: bash
+        run: echo "##[set-output name=tag;]$(echo ${PKG_TAG#refs/tags/})"
+        id: extract_tag
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ci/ssh-image-bookworm.Dockerfile
+          push: true
+          tags: ghcr.io/yeti-web/yeti-cli/ssh:${{steps.extract_tag.outputs.tag}}
+
 
