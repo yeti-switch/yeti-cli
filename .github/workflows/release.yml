@@ -12,14 +12,14 @@ jobs:
     steps:
       - run: apt update
       - name: install aux deps
-        run: apt -y --no-install-recommends install git ca-certificates curl gnupg ruby gpg gpg-agent
+        run: apt -y --no-install-recommends install git ca-certificates curl gnupg ruby gpg gpg-agent make
 
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: set git safe directory
-        run: git config --global --add safe.directory '*'
+      - name: install build-deps
+        run: apt -y --no-install-recommends build-dep .
 
       - name: Build package
         run: make package
