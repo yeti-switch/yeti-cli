@@ -86,6 +86,6 @@ jobs:
           context: .
           file: ci/ssh-image-bookworm.Dockerfile
           push: true
-          tags: ghcr.io/yeti-web/yeti-cli/ssh:${{steps.extract_tag.outputs.tag}}
+          tags: ghcr.io/yeti-switch/yeti-cli/ssh:${{steps.extract_tag.outputs.tag}}
 
 
