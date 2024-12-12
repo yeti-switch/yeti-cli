@@ -38,14 +38,5 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{secrets.DEB_AWS_ACCESS_KEY_ID}}
           AWS_SECRET_ACCESS_KEY: ${{secrets.DEB_AWS_SECRET_ACCESS_KEY}}
           AWS_ENDPOINT_URL: ${{secrets.DEB_AWS_ENDPOINT}}
-        run: deb-s3 upload \
-               --bucket=${{secrets.DEB_AWS_BUCKET}} \
-               --prefix=1.13 \
-               --codename=bookworm \
-               --component=main \
-               --visibility=nil \
-               --force-path-style \
-               --sign=B104E10C35895CFAC0F91473C8D3BC80B6F22179 \
-               --gpg-options "\-\-pinentry-mode=loopback \-\-no-tty \-\-batch \-\-yes \-\-passphrase ${{ secrets.GPG_PASSPHRASE }}" \
-               ../*.deb
+        run: deb-s3 upload --bucket=${{secrets.DEB_AWS_BUCKET}} --prefix=1.13 --codename=bookworm --component=main --visibility=nil --force-path-style --sign=B104E10C35895CFAC0F91473C8D3BC80B6F22179 --gpg-options "\-\-pinentry-mode=loopback \-\-no-tty \-\-batch \-\-yes \-\-passphrase ${{ secrets.GPG_PASSPHRASE }}" ../*.deb
 
