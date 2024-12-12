@@ -10,6 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     container: debian:bookworm
     steps:
+      - run: apt update
+      - name: install aux deps
+        run: apt -y --no-install-recommends install git ca-certificates curl gnupg ruby gpg gpg-agent
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -20,12 +24,6 @@ jobs:
       - name: Build package
         run: make package
           
-      - name: Save deb package as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: deb-package
-          path: /__w/yeti-client/*.deb
-
       - name: Setup deb-s3
         run: gem install deb-s3
 
