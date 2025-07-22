@@ -58,6 +58,12 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
         self.socket.settimeout(self._timeout)
 
         if self.tcp_md5_pass:
+            addr_info = list(filter(lambda x: x[0]==socket.AF_INET,
+                socket.getaddrinfo(self.host, self.port, proto=socket.IPPROTO_TCP)))
+
+            #TODO: add IPv6 support
+            #addr_family, (addr_host, addr_port) = addr_info[0][0], addr_info[0][4][:2]
+
             """
             #define TCP_MD5SIG		 14 /* TCP MD5 Signature (RFC2385) */
 
@@ -71,15 +77,17 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
                 uint8_t	tcpm_key[TCP_MD5SIG_MAXKEYLEN];	/* Key (binary).  */
             };
             """
-            md5_sig = struct.pack('HH4s122sHI80s',
-                socket.AF_INET,                     #tcpm_addr.sin_family
-                0,                                  #tcpm_addr.sin_port
-                socket.inet_aton(self.host),        #tcpm_addr.sin_addr
-                bytes(),                            #zero padding tcpm_addr, tcpm_flags, tcpm_prefixlen
-                len(self.tcp_md5_pass),             #tcpm_keylen
-                0,                                  #__tcpm_pad
-                self.tcp_md5_pass)                  #tcpm_key
-            self.socket.setsockopt(socket.IPPROTO_TCP, 14, md5_sig)
+            if addr_info:
+                md5_sig = struct.pack('HH4s122sHI80s',
+                    socket.AF_INET,                         #tcpm_addr.sin_family
+                    0,                                      #tcpm_addr.sin_port
+                    socket.inet_aton(addr_info[0][4][0]),   #tcpm_addr.sin_addr
+                    bytes(),                                #zero padding tcpm_addr, tcpm_flags, tcpm_prefixlen
+                    len(self.tcp_md5_pass),                 #tcpm_keylen
+                    0,                                      #__tcpm_pad
+                    self.tcp_md5_pass)                      #tcpm_key
+
+                self.socket.setsockopt(socket.IPPROTO_TCP, 14, md5_sig)
 
         self.socket.connect((self.host, self.port))
         self._incrementor = 1
