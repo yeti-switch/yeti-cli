@@ -1,3 +1,2 @@
 yeti-cli yeti-cmd /usr/bin
-conf/yeti-cli.rsyslog.conf /etc/rsyslog.d/
 conf/yeti-cli.yml.example /usr/share/yeti-cli/
