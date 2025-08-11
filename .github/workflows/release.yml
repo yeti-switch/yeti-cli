@@ -10,13 +10,26 @@ jobs:
     runs-on: ubuntu-latest
     container: debian:bookworm
     steps:
+      
+      - name: Calculate version from ${{github.ref}}
+        env:
+          PKG_TAG: ${{github.ref}}
+        shell: bash
+        run: echo "tag=$(echo ${PKG_TAG#refs/tags/})" >> $GITHUB_OUTPUT
+        id: extract_tag
+
       - run: apt update
       - name: install aux deps
-        run: apt -y --no-install-recommends install git ca-certificates curl gnupg ruby gpg gpg-agent make
+        run: apt -y --no-install-recommends install git ca-certificates curl gnupg ruby gpg gpg-agent make devscripts
 
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      
+      - name: update changelog
+        run: > 
+          rm debian/changelog && 
+          dch --create --package yeti-cli --newversion "${{steps.extract_tag.outputs.tag}}" --distribution bookworm "Release: ${{steps.extract_tag.outputs.tag}}, commit: ${{github.ref}}"
 
       - name: install build-deps
         run: apt -y --no-install-recommends build-dep .
@@ -29,26 +42,70 @@ jobs:
         with:
           name: deb12-package
           path: /__w/yeti-cli/*.deb
-          
-      - name: Setup deb-s3
-        run: gem install deb-s3
 
-      - name: Import GPG key
-        uses: crazy-max/ghaction-import-gpg@v6
+      - uses: yeti-switch/upload-debian-pkg-action@v2
         with:
+          pkgs: '../*.deb'
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.GPG_PASSPHRASE }}
-        
-      - name: Upload package
-        env:
-          AWS_ACCESS_KEY_ID: ${{secrets.DEB_AWS_ACCESS_KEY_ID}}
-          AWS_SECRET_ACCESS_KEY: ${{secrets.DEB_AWS_SECRET_ACCESS_KEY}}
-          AWS_ENDPOINT_URL: ${{secrets.DEB_AWS_ENDPOINT}}
-        run: deb-s3 upload --bucket=${{secrets.DEB_AWS_BUCKET}} --prefix=1.14 --codename=bookworm --component=main --visibility=nil --force-path-style --sign=B104E10C35895CFAC0F91473C8D3BC80B6F22179 --gpg-options "\-\-pinentry-mode=loopback \-\-no-tty \-\-batch \-\-yes \-\-passphrase ${{ secrets.GPG_PASSPHRASE }}" ../*.deb
+          gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          s3_codename: bookworm
+          s3_access_key_id: ${{ secrets.DEB_AWS_ACCESS_KEY_ID }}
+          s3_secret_access_key: ${{ secrets.DEB_AWS_SECRET_ACCESS_KEY }}
+          s3_endpoint_url: ${{ secrets.DEB_AWS_ENDPOINT }}
+          s3_prefix: '1.14'
 
-  deb12_container:
-    name: Debian 12 release container
-    needs: deb12
+  deb13:
+    name: Debian 13 release package building
+    runs-on: ubuntu-latest
+    container: debian:trixie
+    steps:
+      
+      - name: Calculate version from ${{github.ref}}
+        env:
+          PKG_TAG: ${{github.ref}}
+        shell: bash
+        run: echo "tag=$(echo ${PKG_TAG#refs/tags/})" >> $GITHUB_OUTPUT
+        id: extract_tag
+
+      - run: apt update
+      - name: install aux deps
+        run: apt -y --no-install-recommends install git ca-certificates curl gnupg ruby gpg gpg-agent make devscripts
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: update changelog
+        run: > 
+          rm debian/changelog && 
+          dch --create --package yeti-cli --newversion "${{steps.extract_tag.outputs.tag}}" --distribution bookworm "Release: ${{steps.extract_tag.outputs.tag}}, commit: ${{github.ref}}"
+
+      - name: install build-deps
+        run: apt -y --no-install-recommends build-dep .
+
+      - name: Build package
+        run: make package
+
+      - name: Save deb package as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb13-package
+          path: /__w/yeti-cli/*.deb
+
+      - uses: yeti-switch/upload-debian-pkg-action@v2
+        with:
+          pkgs: '../*.deb'
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          s3_codename: trixie
+          s3_access_key_id: ${{ secrets.DEB_AWS_ACCESS_KEY_ID }}
+          s3_secret_access_key: ${{ secrets.DEB_AWS_SECRET_ACCESS_KEY }}
+          s3_endpoint_url: ${{ secrets.DEB_AWS_ENDPOINT }}
+          s3_prefix: '1.14'
+
+  deb13_container:
+    name: Debian 13 release container
+    needs: deb13
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,7 +115,7 @@ jobs:
       - name: Download a single artifact
         uses: actions/download-artifact@v4
         with:
-          name: deb12-package
+          name: deb13-package
 
       - name: Display structure of downloaded files
         run: ls -la
@@ -70,7 +127,7 @@ jobs:
         env:
           PKG_TAG: ${{github.ref}}
         shell: bash
-        run: echo "##[set-output name=tag;]$(echo ${PKG_TAG#refs/tags/})"
+        run: echo "tag=$(echo ${PKG_TAG#refs/tags/})" >> $GITHUB_OUTPUT
         id: extract_tag
 
       - name: Login to GitHub Container Registry
@@ -84,8 +141,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ci/ssh-image-bookworm.Dockerfile
+          file: ci/ssh-image-trixie.Dockerfile
           push: true
           tags: ghcr.io/yeti-switch/yeti-cli/ssh:${{steps.extract_tag.outputs.tag}}
-
 
