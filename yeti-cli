@@ -16,6 +16,7 @@ import readline
 import re
 import cmd
 import struct
+from enum import Enum
 
 __version__ = 'REPLACE-ME'
 
@@ -38,8 +39,24 @@ def byteify(input):
 class ConnectionLost(Exception): pass
 class JsonRpcError(Exception): pass
 
+HTTP_REGEX = re.compile("^https?://")
+
+class EndpointType(Enum):
+    TCP = 0
+    HTTP = 1
+
 class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
     def __init__(self, addr, timeout = 5, tcp_md5_pass = None, version="2.0"):
+        self._version = version
+        self._timeout = timeout
+        self._incrementor = 1
+
+        if HTTP_REGEX.search(addr):
+            self.endpoint_type = EndpointType.HTTP
+            self.url = addr
+            return
+
+        self.endpoint_type = EndpointType.TCP
         if addr.find(':'):
             (self.host,self.port) = addr.split(':')
             self.port = int(self.port)
@@ -48,8 +65,6 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
             self.port = 7080
 
         self.tcp_md5_pass = tcp_md5_pass and tcp_md5_pass.encode('utf-8') or None
-        self._version = version
-        self._timeout = timeout
 
         self.connect()
 
@@ -90,7 +105,6 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
                 self.socket.setsockopt(socket.IPPROTO_TCP, 14, md5_sig)
 
         self.socket.connect((self.host, self.port))
-        self._incrementor = 1
 
     def close(self):
         self.socket.close()
@@ -143,14 +157,24 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
         if last_char.decode('utf-8') != ',':
             raise JsonRpcError("Expected a comma as a jsonrpc terminator!")
 
-        if 'result' in response:
-            return response['result']
-        elif 'params' in response and 'method' in response:
-            return [response['method'], response['params']]
-        elif 'error' in response:
-            raise JsonRpcError(response['error'])
-        else:
-            raise JsonRpcError('Unknown error. Response: {}'.format(response))
+        return response
+
+    def sendrecv_http(self, request_body):
+        reply = requests.post(
+            self.url,
+            data=request_body,
+            headers={'Content-Type': 'application/json', 'User-Agent': 'yeti-cli'},
+            timeout=self._timeout)
+
+        reply.raise_for_status()
+
+        try:
+            return json.loads(reply.text)
+        except Exception as e:
+            print("failed to parse json reply")
+            print(e)
+            print("raw data:\n'''\n", reply.text, "\n'''")
+            return reply.text
 
     def send(self, method, params={}, verbose = False, notification = False):
         if notification:
@@ -159,17 +183,28 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
             self._incrementor += 1
             jsonrpc_request = {"jsonrpc": self._version, "id": str(self._incrementor), "method": method, "params": params}
 
-        string = json.dumps(jsonrpc_request)
+        jsonrpc_request_string = json.dumps(jsonrpc_request)
         if verbose:
-            print(string)
-        jsonrpc = str(len(string)) + ":" + string + ","
+            print(jsonrpc_request_string)
 
-        self.socket.sendall(jsonrpc.encode('utf-8'))
+        if self.endpoint_type == EndpointType.HTTP:
+            response = self.sendrecv_http(jsonrpc_request_string)
+        else:
+            jsonrpc = str(len(jsonrpc_request_string)) + ":" + jsonrpc_request_string + ","
+            self.socket.sendall(jsonrpc.encode('utf-8'))
+            response = self.recv(verbose)
 
         if notification:
             return
 
-        return self.recv(verbose)
+        if 'result' in response:
+            return response['result']
+        elif 'params' in response and 'method' in response:
+            return [response['method'], response['params']]
+        elif 'error' in response:
+            raise JsonRpcError(response['error'])
+        else:
+            raise JsonRpcError('Unknown error. Response: {}'.format(response))
 
     def call_remote(self, method, params, verbose = False):
         return self.send(method, params, verbose)
