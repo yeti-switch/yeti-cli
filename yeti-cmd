@@ -9,20 +9,24 @@ import socket
 import json
 import traceback
 import struct
+
 try:
     import dotenv
 except:
     pass
 
-class JsonRpcError(Exception): pass
 
-class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
-    def __init__(self, addr, timeout = 10, version="2.0"):
+class JsonRpcError(Exception):
+    pass
+
+
+class JsonRpcProxy:  # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
+    def __init__(self, addr, timeout=10, version="2.0"):
         tcp_md5_pass = os.getenv("JSONRPC_PASS", None)
-        if '@' in addr:
-            (tcp_md5_pass, addr) = addr.split('@')
-        if ':' in addr:
-            (self.host,self.port) = addr.split(':')
+        if "@" in addr:
+            (tcp_md5_pass, addr) = addr.split("@")
+        if ":" in addr:
+            (self.host, self.port) = addr.split(":")
             self.port = int(self.port)
         else:
             self.host = addr
@@ -30,7 +34,7 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
         self._version = version
         self._timeout = timeout
 
-        self.tcp_md5_pass = tcp_md5_pass and tcp_md5_pass.encode('utf-8') or None
+        self.tcp_md5_pass = tcp_md5_pass and tcp_md5_pass.encode("utf-8") or None
 
         self.connect()
 
@@ -39,11 +43,15 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
         self.socket.settimeout(self._timeout)
 
         if self.tcp_md5_pass:
-            addr_info = list(filter(lambda x: x[0]==socket.AF_INET,
-                socket.getaddrinfo(self.host, self.port, proto=socket.IPPROTO_TCP)))
+            addr_info = list(
+                filter(
+                    lambda x: x[0] == socket.AF_INET,
+                    socket.getaddrinfo(self.host, self.port, proto=socket.IPPROTO_TCP),
+                )
+            )
 
-            #TODO: add IPv6 support
-            #addr_family, (addr_host, addr_port) = addr_info[0][0], addr_info[0][4][:2]
+            # TODO: add IPv6 support
+            # addr_family, (addr_host, addr_port) = addr_info[0][0], addr_info[0][4][:2]
 
             """
             #define TCP_MD5SIG		 14 /* TCP MD5 Signature (RFC2385) */
@@ -59,14 +67,16 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
             };
             """
             if addr_info:
-                md5_sig = struct.pack('HH4s122sHI80s',
-                    socket.AF_INET,                         #tcpm_addr.sin_family
-                    0,                                      #tcpm_addr.sin_port
-                    socket.inet_aton(addr_info[0][4][0]),   #tcpm_addr.sin_addr
-                    bytes(),                                #zero padding tcpm_addr, tcpm_flags, tcpm_prefixlen
-                    len(self.tcp_md5_pass),                 #tcpm_keylen
-                    0,                                      #__tcpm_pad
-                    self.tcp_md5_pass)                      #tcpm_key
+                md5_sig = struct.pack(
+                    "HH4s122sHI80s",
+                    socket.AF_INET,  # tcpm_addr.sin_family
+                    0,  # tcpm_addr.sin_port
+                    socket.inet_aton(addr_info[0][4][0]),  # tcpm_addr.sin_addr
+                    bytes(),  # zero padding tcpm_addr, tcpm_flags, tcpm_prefixlen
+                    len(self.tcp_md5_pass),  # tcpm_keylen
+                    0,  # __tcpm_pad
+                    self.tcp_md5_pass,
+                )  # tcpm_key
 
                 self.socket.setsockopt(socket.IPPROTO_TCP, 14, md5_sig)
 
@@ -82,92 +92,110 @@ class JsonRpcProxy: # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
     def set_timeout(self, timeout):
         self.socket.settimeout(timeout)
 
-    def recv(self, verbose = False):
+    def recv(self, verbose=False):
         try:
             byte_length = self.socket.recv(1, socket.MSG_WAITALL)
 
             if not byte_length:
                 raise ConnectionLost()
 
-            while byte_length[-1] != ord(':'):
-            #~ while str(byte_length[-1]) != ':':
+            while byte_length[-1] != ord(":"):
+                # ~ while str(byte_length[-1]) != ':':
                 byte_length += self.socket.recv(1)
 
-            byte_length = int(byte_length[:-1].decode('utf-8'))
+            byte_length = int(byte_length[:-1].decode("utf-8"))
 
-            response_string = ''
+            response_string = ""
             while len(response_string) < byte_length:
-                response_string += str(self.socket.recv(byte_length-len(response_string)),'utf-8')
+                response_string += str(
+                    self.socket.recv(byte_length - len(response_string)), "utf-8"
+                )
 
             if verbose:
-                print('<',response_string)
+                print("<", response_string)
 
             try:
                 response = json.loads(response_string)
             except Exception as e:
                 print("failed to parse json reply")
                 print(e)
-                print("raw data:\n'''\n",response_string,"\n'''")
+                print("raw data:\n'''\n", response_string, "\n'''")
                 return response_string
         except Exception as e:
             traceback_string = traceback.format_exc()
             raise e
 
-        if 'id' in response and not response['id'] == str(self._incrementor):
-            raise JsonRpcError('Bad sequence ID ({}, expected {})'.format(response['id'], self._incrementor))
+        if "id" in response and not response["id"] == str(self._incrementor):
+            raise JsonRpcError(
+                "Bad sequence ID ({}, expected {})".format(
+                    response["id"], self._incrementor
+                )
+            )
 
         last_char = self.socket.recv(1)
 
-        if last_char.decode('utf-8') != ',':
+        if last_char.decode("utf-8") != ",":
             raise JsonRpcError("Expected a comma as a jsonrpc terminator!")
 
-        if 'result' in response:
-            return response['result']
-        elif 'params' in response and 'method' in response:
-            return [response['method'], response['params']]
-        elif 'error' in response:
-            raise JsonRpcError(response['error'])
+        if "result" in response:
+            return response["result"]
+        elif "params" in response and "method" in response:
+            return [response["method"], response["params"]]
+        elif "error" in response:
+            raise JsonRpcError(response["error"])
         else:
-            raise JsonRpcError('Unknown error. Response: {}'.format(response))
+            raise JsonRpcError("Unknown error. Response: {}".format(response))
 
-    def send(self, method, params={}, verbose = False, notification = False):
+    def send(self, method, params={}, verbose=False, notification=False):
         if notification:
-            jsonrpc_request = {"jsonrpc": self._version, "method": method, "params": params}
+            jsonrpc_request = {
+                "jsonrpc": self._version,
+                "method": method,
+                "params": params,
+            }
         else:
             self._incrementor += 1
-            jsonrpc_request = {"jsonrpc": self._version, "id": str(self._incrementor), "method": method, "params": params}
+            jsonrpc_request = {
+                "jsonrpc": self._version,
+                "id": str(self._incrementor),
+                "method": method,
+                "params": params,
+            }
 
         string = json.dumps(jsonrpc_request)
         if verbose:
-            print('>',string)
+            print(">", string)
         jsonrpc = str(len(string)) + ":" + string + ","
 
-        self.socket.sendall(jsonrpc.encode('utf-8'))
+        self.socket.sendall(jsonrpc.encode("utf-8"))
 
         if notification:
             return
 
         return self.recv(verbose)
 
-    def call_remote(self, method, params, verbose = False):
+    def call_remote(self, method, params, verbose=False):
         return self.send(method, params, verbose)
 
-class CommandLineCall:
-    def rpc_do_dotted(self,addr, method, args, verbose = False):
 
-        for i,a in enumerate(args):
-            if a=='empty':
-                args[i] = ''
-            elif a=='-':
+class CommandLineCall:
+    def rpc_do_dotted(self, addr, method, args, verbose=False):
+
+        for i, a in enumerate(args):
+            if a == "empty":
+                args[i] = ""
+            elif a == "-":
                 args = json.loads(sys.stdin.read())
                 break
 
         j = JsonRpcProxy(addr)
 
-        return j.call_remote(method,args,verbose)
+        return j.call_remote(method, args, verbose)
+
 
 def usage():
-    print('''
+    print(
+        """
 usage: yeti-cmd addr[:port] method [- | param [, param [...]]]
 
   addr   - endpoint FQDN/IP address
@@ -185,11 +213,14 @@ examples:
     yeti-cmd 127.0.0.1 core.set.log-level.syslog 3
     yeti-cmd 127.0.0.1 registrar_client.createRegistration 1 test.domain user empty auth_user auth_pass
     echo '["3"]' | VERBOSE=1 yeti-cmd 127.0.0.1 core.set.log-level.syslog -
-''')
+"""
+    )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     if dotenv:
         from dotenv import load_dotenv
+
         load_dotenv(override=True)
 
     try:
@@ -205,14 +236,14 @@ if __name__ == '__main__':
     parameters = sys.argv[3:]
 
     try:
-        if (addr and command):
-            data =  CommandLineCall().rpc_do_dotted(
-                addr, command, parameters,
-                os.getenv('VERBOSE')=='1')
-            print(json.dumps(data,sort_keys=True, indent=4))
+        if addr and command:
+            data = CommandLineCall().rpc_do_dotted(
+                addr, command, parameters, os.getenv("VERBOSE") == "1"
+            )
+            print(json.dumps(data, sort_keys=True, indent=4))
         else:
             usage()
     except IOError as e:
         print(e)
     except KeyboardInterrupt as e:
-        print('')
+        print("")
