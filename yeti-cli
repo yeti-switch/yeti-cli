@@ -910,12 +910,18 @@ class Shell(cmd.Cmd):
 if __name__ == "__main__":
     try:
         import argparse
+
         parser = argparse.ArgumentParser(
-             prog='yeti-cli',
-             description='interactive jsonRPC client over tcp/http',
-             add_help=True,
+            prog="yeti-cli",
+            description="interactive jsonRPC client over tcp/http",
+            add_help=True,
         )
-        parser.add_argument('-e', type=str, metavar='ENV', help='use ENV section for nodes in cfg file instead of default "nodes"')
+        parser.add_argument(
+            "-e",
+            type=str,
+            metavar="ENV",
+            help='use ENV section for nodes in cfg file instead of default "nodes"',
+        )
         args = parser.parse_args()
 
         syslog.syslog("Session started")
