@@ -3,7 +3,6 @@
 import os
 import sys
 import signal
-import pprint
 import syslog
 import socket
 import atexit
@@ -386,7 +385,7 @@ class Shell(cmd.Cmd):
     ENDPOINT_KEY = "rpc_endpoint"
     TCP_MD5_PASS_KEY = "tcp_md5_password"
 
-    def __init__(self):
+    def __init__(self, args):
         self.user = os.getenv("YETICLI_USER", "anonymous")
         self.prompt = "> "
         self.prompt_system_name = "yeti-cli"
@@ -398,6 +397,7 @@ class Shell(cmd.Cmd):
         self.completion_tree = None
         self.tree_autoload = False
         self.tree_clear_on_use = False
+        self.args = args
         cmd.Cmd.__init__(self)
 
     def cmdloop(self, *args, **kwargs):
@@ -776,7 +776,13 @@ class Shell(cmd.Cmd):
         self.cfg = get_config(CFG_PATH)
         self._timeout = self.cfg.get("timeout")
         self.nodes_url = self.cfg.get("nodes_url")
-        self.local_nodes = self.cfg.get("nodes")
+        if self.args.e:
+            if not self.args.e in self.cfg:
+                print(f"no '{self.args.e}' section in the cfg file")
+                raise SystemExit(1)
+            self.local_nodes = self.cfg.get(self.args.e)
+        else:
+            self.local_nodes = self.cfg.get("nodes")
 
     def load_nodes(self):
         try:
@@ -898,15 +904,23 @@ class Shell(cmd.Cmd):
         if self.formatting and can_formating(data):
             formated_print(byteify(data))
         else:
-            # pprint.PrettyPrinter(indent=4).pprint(byteify(data))
             print(json.dumps(data, sort_keys=True, indent=4))
 
 
 if __name__ == "__main__":
     try:
+        import argparse
+        parser = argparse.ArgumentParser(
+             prog='yeti-cli',
+             description='interactive jsonRPC client over tcp/http',
+             add_help=True,
+        )
+        parser.add_argument('-e', type=str, metavar='ENV', help='use ENV section for nodes in cfg file instead of default "nodes"')
+        args = parser.parse_args()
+
         syslog.syslog("Session started")
         print("yeti-cli version {}".format(__version__))
-        Shell().cmdloop()
+        Shell(args).cmdloop()
     except IOError as e:
         print(e)
     except KeyboardInterrupt as e:
