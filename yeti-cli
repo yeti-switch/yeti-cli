@@ -141,11 +141,14 @@ class JsonRpcProxy:  # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
 
             byte_length = int(byte_length[:-1].decode("utf-8"))
 
-            response_string = ""
-            while len(response_string) < byte_length:
-                response_string += str(
-                    self.socket.recv(byte_length - len(response_string)), "utf-8"
-                )
+            # netstring length is in bytes, so accumulate bytes and decode once
+            response_bytes = b""
+            while len(response_bytes) < byte_length:
+                chunk = self.socket.recv(byte_length - len(response_bytes))
+                if not chunk:
+                    raise ConnectionLost()
+                response_bytes += chunk
+            response_string = response_bytes.decode("utf-8")
 
             # ~ if verbose:
             # ~ print("raw data:\n'''\n",response_string,"\n'''")
@@ -219,10 +222,8 @@ class JsonRpcProxy:  # https://pypi.python.org/pypi/JsonRpc-Netstrings/0.2-dev
         if self.endpoint_type == EndpointType.HTTP:
             response = self.sendrecv_http(jsonrpc_request_string)
         else:
-            jsonrpc = (
-                str(len(jsonrpc_request_string)) + ":" + jsonrpc_request_string + ","
-            )
-            self.socket.sendall(jsonrpc.encode("utf-8"))
+            body = jsonrpc_request_string.encode("utf-8")
+            self.socket.sendall(str(len(body)).encode("utf-8") + b":" + body + b",")
             response = self.recv(verbose)
 
         if notification:
